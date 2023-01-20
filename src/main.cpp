@@ -15,6 +15,10 @@ void setup(void) {
     M5.begin(cfg);
     M5.Display.init();
     M5.Display.setTextSize(3);
+    M5.Display.startWrite();
+    M5.Display.setCursor(0, M5.Display.height() / 2);
+    M5.Display.printf("Starting up...");
+    M5.Display.endWrite();
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
@@ -40,6 +44,8 @@ void setup(void) {
     Serial.println("HTTP server started");
 
     M5.Display.startWrite();
+    M5.Display.clearDisplay(TFT_WHITE);
+    M5.Display.setCursor(0, 10);
     M5.Display.printf("SSID: %s\n", ssid);
     M5.Display.printf("IP Address: %s\n", WiFi.localIP().toString());
     M5.Display.printf("\n\n");
