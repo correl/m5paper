@@ -7,6 +7,7 @@ const char* ssid = "REPLACE_WITH_YOUR_SSID";
 const char* password = "REPLACE_WITH_YOUR_PASSWORD";
 
 AsyncWebServer server(80);
+M5EPD_Canvas canvas(&M5.EPD);
 
 void setup(void) {
     Serial.begin(115200);
@@ -38,6 +39,12 @@ void setup(void) {
     M5.TP.SetRotation(90);
     M5.EPD.SetRotation(90);
     M5.EPD.Clear(true);
+    M5.RTC.begin();
+    canvas.createCanvas(400, 300);
+    canvas.setTextSize(3);
+    canvas.drawString(ssid, 0, 0);
+    canvas.drawString(WiFi.localIP().toString(), 0, 20);
+    canvas.pushCanvas(0, 0, UPDATE_MODE_DU4);
 }
 
 void loop()
