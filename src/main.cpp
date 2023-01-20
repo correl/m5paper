@@ -1,24 +1,18 @@
-#include <M5EPD.h>
+#include <Arduino.h>
+#include <M5Unified.h>
 #include <WiFi.h>
-#include <ESPAsyncWebSrv.h>
+#include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
 
 const char* ssid = "REPLACE_WITH_YOUR_SSID";
 const char* password = "REPLACE_WITH_YOUR_PASSWORD";
 
 AsyncWebServer server(80);
-M5EPD_Canvas canvas(&M5.EPD);
-
-void setup_wifi() {
-}
 
 void setup(void) {
-    M5.begin();
-    M5.EPD.SetRotation(90);
-    M5.EPD.Clear(true);
-    M5.RTC.begin();
-    Serial.println("createCanvas");
-    canvas.createCanvas(540, 960);
+    auto cfg = M5.config();
+    M5.begin(cfg);
+    M5.Display.setTextSize(3);
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
@@ -43,10 +37,13 @@ void setup(void) {
     server.begin();
     Serial.println("HTTP server started");
 
-    canvas.setTextSize(3);
-    canvas.drawString(ssid, 0, 0);
-    canvas.drawString(WiFi.localIP().toString(), 0, 20);
-    canvas.pushCanvas(0, 0, UPDATE_MODE_DU4);
+    M5.Display.printf("SSID: %s\n", ssid);
+    M5.Display.printf("IP Address: %s\n", WiFi.localIP().toString());
+    M5.Display.printf("\n\n");
+    M5.Display.printf("Web server running on port 80\n");
+    M5.Display.printf("ElegantOTA available at\n"
+                      "http://%s/update\n",
+                      WiFi.localIP().toString());
 }
 
 void loop()
