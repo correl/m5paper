@@ -186,10 +186,14 @@ void loop()
     } else if (M5.BtnC.wasClicked()) {
         next = App::Text;
     }
-    if (next != current_app) {
-        switch_app(next);
-    } else {
-        app->loop();
+    try {
+        if (next != current_app) {
+            switch_app(next);
+        } else {
+            app->loop();
+        }
+    } catch (...) {
+        switch_app(App::OTA);
     }
     yield();
 }
