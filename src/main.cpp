@@ -3,9 +3,7 @@
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
-
-const char* ssid = "REPLACE_WITH_YOUR_SSID";
-const char* password = "REPLACE_WITH_YOUR_PASSWORD";
+#include "config.h"
 
 class App {
 public:
@@ -21,7 +19,7 @@ public:
         M5.Display.setFont(&fonts::Font0);
         M5.Display.setEpdMode(epd_text);
         M5.Display.setCursor(0, 10);
-        M5.Display.printf("SSID: %s\n", ssid);
+        M5.Display.printf("SSID: %s\n", WIFI_SSID);
         M5.Display.printf("IP Address: %s\n", WiFi.localIP().toString());
         M5.Display.printf("\n\n");
         M5.Display.printf("Web server running on port 80\n");
@@ -96,7 +94,7 @@ void setup(void) {
     M5.Display.endWrite();
 
     WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, password);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     Serial.println("");
 
     // Wait for connection
@@ -106,7 +104,7 @@ void setup(void) {
     }
     Serial.println("");
     Serial.print("Connected to ");
-    Serial.println(ssid);
+    Serial.println(WIFI_SSID);
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 
