@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <ESPAsyncWebServer.h>
 #include <AsyncElegantOTA.h>
+#include <sntp.h>
 #include "config.h"
 
 class App {
@@ -61,19 +62,20 @@ public:
     }
     void loop() {
         static constexpr const char* const wd[7] = {"Sun","Mon","Tue","Wed","Thr","Fri","Sat"};
-        auto dt = M5.Rtc.getDateTime();
+        auto t = time(nullptr);
+        auto tm = localtime(&t);
         M5.Display.setCursor(0, M5.Display.height() / 3);
         M5.Display.setFont(&fonts::Orbitron_Light_24);
         M5.Display.printf("%s\n%04d.%02d.%02d\n"
-                          , wd[dt.date.weekDay]
-                          , dt.date.year
-                          , dt.date.month
-                          , dt.date.date
+                          , wd[tm->tm_wday]
+                          , tm->tm_year + 1900
+                          , tm->tm_mon + 1
+                          , tm->tm_mday
                           );
         M5.Display.setFont(&fonts::Orbitron_Light_32);
         M5.Display.printf("%02d:%02d     "
-                          , dt.time.hours
-                          , dt.time.minutes
+                          , tm->tm_hour
+                          , tm->tm_min
                           );
         delay(10000);
     }
@@ -88,25 +90,35 @@ void setup(void) {
     M5.begin(cfg);
     M5.Display.init();
     M5.Display.setTextSize(3);
-    M5.Display.startWrite();
-    M5.Display.setCursor(0, M5.Display.height() / 2);
+    M5.Display.setCursor(0, M5.Display.height() / 4);
     M5.Display.printf("Starting up...");
-    M5.Display.endWrite();
 
+    M5.Display.print("Connecting to WiFi");
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-    Serial.println("");
+    M5.Display.println("");
 
     // Wait for connection
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
-        Serial.print(".");
+        M5.Display.print(".");
     }
-    Serial.println("");
-    Serial.print("Connected to ");
-    Serial.println(WIFI_SSID);
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
+    M5.Display.println("");
+    M5.Display.print("Connected to ");
+    M5.Display.println(WIFI_SSID);
+    M5.Display.print("IP address: ");
+    M5.Display.println(WiFi.localIP());
+
+    M5.Display.print("Syncing time");
+    configTzTime(NTP_TIMEZONE, NTP_SERVER1, NTP_SERVER2, NTP_SERVER3);
+    while (sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED) {
+        M5.Display.print('.');
+        delay(1000);
+    }
+    M5.Display.println("");
+    time_t t = time(nullptr)+1; // Advance one second.
+    while (t > time(nullptr));  /// Synchronization in seconds
+    M5.Rtc.setDateTime( gmtime( &t ) );
 
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
         request->send(200, "text/plain", "Hi! I am ESP32.");
@@ -114,7 +126,7 @@ void setup(void) {
 
     AsyncElegantOTA.begin(&server);    // Start ElegantOTA
     server.begin();
-    Serial.println("HTTP server started");
+    M5.Display.println("HTTP server started");
 
     app = new Clock;
     current_app = App::Clock;
