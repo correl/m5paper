@@ -10,6 +10,7 @@ const char* password = "REPLACE_WITH_YOUR_PASSWORD";
 class App {
 public:
     virtual void loop() = 0;
+    enum Choices {Clock, OTA};
 };
 
 class OTA: public App {
@@ -17,6 +18,8 @@ public:
     OTA() {
         M5.Display.startWrite();
         M5.Display.clearDisplay(TFT_WHITE);
+        M5.Display.setFont(&fonts::Font0);
+        M5.Display.setEpdMode(epd_text);
         M5.Display.setCursor(0, 10);
         M5.Display.printf("SSID: %s\n", ssid);
         M5.Display.printf("IP Address: %s\n", WiFi.localIP().toString());
@@ -55,26 +58,32 @@ class Clock: public App {
 public:
     Clock() {
         M5.Display.clearDisplay(TFT_WHITE);
+        M5.Display.setFont(&fonts::Orbitron_Light_32);
+        M5.Display.setEpdMode(epd_fast);
     }
     void loop() {
         static constexpr const char* const wd[7] = {"Sun","Mon","Tue","Wed","Thr","Fri","Sat"};
         auto dt = M5.Rtc.getDateTime();
-        M5.Display.setCursor(0, 15);
-        M5.Display.printf("RTC : %04d/%02d/%02d (%s)  %02d:%02d:%02d"
-               , dt.date.year
-               , dt.date.month
-               , dt.date.date
-               , wd[dt.date.weekDay]
-               , dt.time.hours
-               , dt.time.minutes
-               , dt.time.seconds
-               );
-        delay(500);
+        M5.Display.setCursor(0, M5.Display.height() / 3);
+        M5.Display.setFont(&fonts::Orbitron_Light_24);
+        M5.Display.printf("%s\n%04d.%02d.%02d\n"
+                          , wd[dt.date.weekDay]
+                          , dt.date.year
+                          , dt.date.month
+                          , dt.date.date
+                          );
+        M5.Display.setFont(&fonts::Orbitron_Light_32);
+        M5.Display.printf("%02d:%02d     "
+                          , dt.time.hours
+                          , dt.time.minutes
+                          );
+        delay(10000);
     }
 };
 
 AsyncWebServer server(80);
 App* app;
+App::Choices current_app;
 
 void setup(void) {
     auto cfg = M5.config();
@@ -109,19 +118,37 @@ void setup(void) {
     server.begin();
     Serial.println("HTTP server started");
 
-    app = new OTA;
+    app = new Clock;
+    current_app = App::Clock;
+}
+
+void switch_app(App::Choices next) {
+    delete app;
+    switch (next) {
+    case App::Clock:
+        app = new Clock;
+        break;
+    case App::OTA:
+    default:
+        app = new OTA;
+    }
+    current_app = next;
 }
 
 void loop()
 {
     M5.update();
+
+    App::Choices next = current_app;
     if (M5.BtnA.wasClicked()) {
-        delete app;
-        app = new Clock;
+        next = App::Clock;
     } else if (M5.BtnC.wasClicked()) {
-        delete app;
-        app = new OTA;
+        next = App::OTA;
     }
-    app->loop();
+    if (next != current_app) {
+        switch_app(next);
+    } else {
+        app->loop();
+    }
     yield();
 }
