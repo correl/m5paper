@@ -9,16 +9,16 @@
 class App {
 public:
     virtual void loop() = 0;
-    enum Choices {Clock, OTA};
+    enum Choices {Clock, OTA, Text};
 };
 
 class OTA: public App {
 public:
     OTA() {
+        M5.Display.setEpdMode(epd_text);
         M5.Display.startWrite();
         M5.Display.clearDisplay(TFT_WHITE);
         M5.Display.setFont(&fonts::Font0);
-        M5.Display.setEpdMode(epd_text);
         M5.Display.setCursor(0, 10);
         M5.Display.printf("SSID: %s\n", WIFI_SSID);
         M5.Display.printf("IP Address: %s\n", WiFi.localIP().toString());
@@ -56,9 +56,9 @@ protected:
 class Clock: public App {
 public:
     Clock() {
+        M5.Display.setEpdMode(epd_fast);
         M5.Display.clearDisplay(TFT_WHITE);
         M5.Display.setFont(&fonts::Orbitron_Light_32);
-        M5.Display.setEpdMode(epd_fast);
     }
     void loop() {
         static constexpr const char* const wd[7] = {"Sun","Mon","Tue","Wed","Thr","Fri","Sat"};
@@ -81,6 +81,29 @@ public:
                               , tm->tm_min
                               );
         }
+    }
+};
+
+class Text: public App {
+public:
+    Text() {
+        M5.Display.setEpdMode(epd_quality);
+        M5.Display.clearDisplay(TFT_WHITE);
+        auto font = &fonts::FreeSans9pt7b;
+        lgfx::v1::FontMetrics metrics;
+        font->getDefaultMetric(&metrics);
+        M5.Display.setFont(font);
+        M5.Display.setTextSize(3);
+        auto t_x = M5.Display.getTextSizeX();
+        auto t_y = M5.Display.getTextSizeY();
+        auto t_p = M5.Display.getTextPadding();
+        M5.Display.setCursor(0, 0);
+        M5.Display.printf("FreeSans9pt7b\n");
+        auto c_y = M5.Display.getCursorY();
+        M5.Display.printf("Y: %d\nH: %2.2f\nW:%2.2f\nPadding: %d\n", c_y, t_y, t_x, t_p);
+        M5.Display.printf("Y Advance: %d\n", metrics.y_advance); // This here, this is the actual Y height of the text
+    }
+    void loop() {
     }
 };
 
@@ -141,6 +164,9 @@ void switch_app(App::Choices next) {
     case App::Clock:
         app = new Clock;
         break;
+    case App::Text:
+        app = new Text;
+        break;
     case App::OTA:
     default:
         app = new OTA;
@@ -155,8 +181,10 @@ void loop()
     App::Choices next = current_app;
     if (M5.BtnA.wasClicked()) {
         next = App::Clock;
-    } else if (M5.BtnC.wasClicked()) {
+    } else if (M5.BtnB.wasClicked()) {
         next = App::OTA;
+    } else if (M5.BtnC.wasClicked()) {
+        next = App::Text;
     }
     if (next != current_app) {
         switch_app(next);
