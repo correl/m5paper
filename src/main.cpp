@@ -62,22 +62,25 @@ public:
     }
     void loop() {
         static constexpr const char* const wd[7] = {"Sun","Mon","Tue","Wed","Thr","Fri","Sat"};
+        static auto last_t = time(nullptr) - 10;
         auto t = time(nullptr);
-        auto tm = localtime(&t);
-        M5.Display.setCursor(0, M5.Display.height() / 3);
-        M5.Display.setFont(&fonts::Orbitron_Light_24);
-        M5.Display.printf("%s\n%04d.%02d.%02d\n"
-                          , wd[tm->tm_wday]
-                          , tm->tm_year + 1900
-                          , tm->tm_mon + 1
-                          , tm->tm_mday
-                          );
-        M5.Display.setFont(&fonts::Orbitron_Light_32);
-        M5.Display.printf("%02d:%02d     "
-                          , tm->tm_hour
-                          , tm->tm_min
-                          );
-        delay(10000);
+        if (t >= (last_t + 10)) {
+            last_t = t;
+            auto tm = localtime(&t);
+            M5.Display.setCursor(0, M5.Display.height() / 3);
+            M5.Display.setFont(&fonts::Orbitron_Light_24);
+            M5.Display.printf("%s\n%04d.%02d.%02d\n"
+                              , wd[tm->tm_wday]
+                              , tm->tm_year + 1900
+                              , tm->tm_mon + 1
+                              , tm->tm_mday
+                              );
+            M5.Display.setFont(&fonts::Orbitron_Light_32);
+            M5.Display.printf("%02d:%02d     "
+                              , tm->tm_hour
+                              , tm->tm_min
+                              );
+        }
     }
 };
 
@@ -91,7 +94,7 @@ void setup(void) {
     M5.Display.init();
     M5.Display.setTextSize(3);
     M5.Display.setCursor(0, M5.Display.height() / 4);
-    M5.Display.printf("Starting up...");
+    M5.Display.println("Starting up...");
 
     M5.Display.print("Connecting to WiFi");
     WiFi.mode(WIFI_STA);
