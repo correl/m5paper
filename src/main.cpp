@@ -64,9 +64,14 @@ public:
         static constexpr const char* const wd[7] = {"Sun","Mon","Tue","Wed","Thr","Fri","Sat"};
         static auto last_t = time(nullptr) - 10;
         auto t = time(nullptr);
+        int battery = M5.Power.getBatteryLevel();
+
         if (t >= (last_t + 10)) {
             last_t = t;
             auto tm = localtime(&t);
+            M5.Display.setCursor(0,0);
+            M5.Display.setFont(&fonts::Font2);
+            M5.Display.printf("%3d%%     ", battery);
             M5.Display.setCursor(0, M5.Display.height() / 3);
             M5.Display.setFont(&fonts::Orbitron_Light_24);
             M5.Display.printf("%s\n%04d.%02d.%02d\n"
