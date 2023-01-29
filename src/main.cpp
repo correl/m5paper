@@ -8,8 +8,9 @@
 
 class App {
 public:
-    virtual void loop() = 0;
-    enum Choices {Clock, OTA, Text};
+    enum Choices {Clock, System, OTA, Text};
+    virtual Choices loop() = 0;
+    virtual void shutdown() = 0;
 };
 
 class OTA: public App {
@@ -32,7 +33,7 @@ public:
         button_power.drawButton();
         M5.Display.endWrite();
     }
-    void loop() {
+    App::Choices loop() {
         auto t = M5.Touch.getDetail();
         if (t.wasPressed()) {
             if (button_power.contains(t.x, t.y)) {
@@ -47,20 +48,76 @@ public:
             M5.Display.clearDisplay(TFT_WHITE);
             M5.Power.powerOff();
         }
-        yield();
+        return App::OTA;
+    }
+    void shutdown() {
+        M5.Display.printf("Disconnecting WiFi...");
+        delay(2000);
     }
 protected:
     LGFX_Button button_power;
 };
 
+class System: public App {
+public:
+    System() {
+        M5.Display.setEpdMode(epd_text);
+        M5.Display.startWrite();
+        M5.Display.clearDisplay(TFT_WHITE);
+        M5.Display.setFont(&fonts::Font0);
+        M5.Display.setCursor(0, 10);
+
+        button_ota.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Update", 3, 3);
+        button_ota.drawButton();
+        button_power.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2 + 200, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Power", 3, 3);
+        button_power.drawButton();
+        M5.Display.endWrite();
+        button_power.press(false);
+        button_ota.press(false);
+    }
+    App::Choices loop() {
+        auto t = M5.Touch.getDetail();
+        if (t.wasPressed()) {
+            if (button_power.contains(t.x, t.y)) {
+                button_power.press(true);
+            } else {
+                button_power.press(false);
+            }
+            if (button_ota.contains(t.x, t.y)) {
+                button_ota.press(true);
+            } else {
+                button_ota.press(false);
+            }
+        } else {
+            button_power.press(false);
+            button_ota.press(false);
+        }
+        if (button_power.justReleased()) {
+            M5.Display.clearDisplay(TFT_WHITE);
+            M5.Power.powerOff();
+        }
+        if (button_ota.justReleased()) {
+            return App::OTA;
+        }
+        return App::System;
+    }
+    void shutdown() {
+
+    }
+protected:
+    LGFX_Button button_power;
+    LGFX_Button button_ota;
+};
+
 class Clock: public App {
 public:
     Clock() {
-        M5.Display.setEpdMode(epd_fast);
+        M5.Display.setEpdMode(epd_quality);
         M5.Display.clearDisplay(TFT_WHITE);
+        M5.Display.setEpdMode(epd_fast);
         M5.Display.setFont(&fonts::Orbitron_Light_32);
     }
-    void loop() {
+    App::Choices loop() {
         static constexpr const char* const wd[7] = {"Sun","Mon","Tue","Wed","Thr","Fri","Sat"};
         static auto last_t = time(nullptr) - 10;
         auto t = time(nullptr);
@@ -86,6 +143,10 @@ public:
                               , tm->tm_min
                               );
         }
+        return App::Clock;
+    }
+    void shutdown() {
+
     }
 };
 
@@ -108,7 +169,11 @@ public:
         M5.Display.printf("Y: %d\nH: %2.2f\nW:%2.2f\nPadding: %d\n", c_y, t_y, t_x, t_p);
         M5.Display.printf("Y Advance: %d\n", metrics.y_advance); // This here, this is the actual Y height of the text
     }
-    void loop() {
+    App::Choices loop() {
+        return App::Text;
+    }
+    void shutdown() {
+
     }
 };
 
@@ -164,6 +229,7 @@ void setup(void) {
 }
 
 void switch_app(App::Choices next) {
+    app->shutdown();
     delete app;
     switch (next) {
     case App::Clock:
@@ -171,6 +237,9 @@ void switch_app(App::Choices next) {
         break;
     case App::Text:
         app = new Text;
+        break;
+    case App::System:
+        app = new System;
         break;
     case App::OTA:
     default:
@@ -187,7 +256,7 @@ void loop()
     if (M5.BtnA.wasClicked()) {
         next = App::Clock;
     } else if (M5.BtnB.wasClicked()) {
-        next = App::OTA;
+        next = App::System;
     } else if (M5.BtnC.wasClicked()) {
         next = App::Text;
     }
@@ -195,10 +264,13 @@ void loop()
         if (next != current_app) {
             switch_app(next);
         } else {
-            app->loop();
+            next = app->loop();
+            if (next != current_app) {
+                switch_app(next);
+            }
         }
     } catch (...) {
-        switch_app(App::OTA);
+        switch_app(App::System);
     }
     yield();
 }
