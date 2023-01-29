@@ -16,6 +16,9 @@ public:
 class OTA: public App {
 public:
     OTA() {
+        M5.Display.setEpdMode(epd_text);
+        M5.Display.clearDisplay(TFT_WHITE);
+        M5.Display.setFont(&fonts::Font0);
         M5.Display.print("Connecting to WiFi");
         WiFi.mode(WIFI_STA);
         WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -52,10 +55,8 @@ public:
         server->begin();
         M5.Display.println("HTTP server started");
 
-        M5.Display.setEpdMode(epd_text);
         M5.Display.startWrite();
         M5.Display.clearDisplay(TFT_WHITE);
-        M5.Display.setFont(&fonts::Font0);
         M5.Display.setCursor(0, 10);
         M5.Display.printf("SSID: %s\n", WIFI_SSID);
         M5.Display.printf("IP Address: %s\n", WiFi.localIP().toString());
@@ -78,7 +79,6 @@ public:
         M5.Display.print("Disconnecting WiFi...");
         WiFi.disconnect();
         M5.Display.println("ok");
-        delay(2000);
     }
 protected:
     AsyncWebServer* server;
