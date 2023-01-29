@@ -225,6 +225,7 @@ void setup(void) {
 void switch_app(App::Choices next) {
     app->shutdown();
     delete app;
+    M5.update();
     switch (next) {
     case App::Clock:
         app = new Clock;
