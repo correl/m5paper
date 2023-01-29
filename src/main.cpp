@@ -209,6 +209,10 @@ App::Choices current_app;
 void setup(void) {
     auto cfg = M5.config();
     M5.begin(cfg);
+
+    setenv("TZ", NTP_TIMEZONE, 1);
+    tzset();
+
     M5.Display.init();
     M5.Display.setTextSize(3);
     M5.Display.setCursor(0, M5.Display.height() / 4);
