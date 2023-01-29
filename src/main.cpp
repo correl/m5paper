@@ -6,6 +6,8 @@
 #include <sntp.h>
 #include "config.h"
 
+using namespace std;
+
 class App {
 public:
     enum Choices {Clock, System, OTA, Text};
@@ -179,27 +181,108 @@ public:
 class Text: public App {
 public:
     Text() {
+        String sample =
+            "I've seen things you people wouldn't believe.\n"
+            "Attack ships on fire off the shoulder of Orion.\n"
+            "I watched c-beams glitter in the dark near the Tannhäuser Gate.\n"
+            "All those moments will be lost in time, like tears in rain.\n"
+            "Time to die.";
+        M5.Display.startWrite();
         M5.Display.setEpdMode(epd_quality);
         M5.Display.clearDisplay(TFT_WHITE);
-        auto font = &fonts::FreeSans9pt7b;
-        lgfx::v1::FontMetrics metrics;
-        font->getDefaultMetric(&metrics);
-        M5.Display.setFont(font);
-        M5.Display.setTextSize(3);
-        auto t_x = M5.Display.getTextSizeX();
-        auto t_y = M5.Display.getTextSizeY();
-        auto t_p = M5.Display.getTextPadding();
+        M5.Display.setFont(&fonts::FreeSans9pt7b);
+        M5.Display.setTextSize(2);
         M5.Display.setCursor(0, 0);
-        M5.Display.printf("FreeSans9pt7b\n");
-        auto c_y = M5.Display.getCursorY();
-        M5.Display.printf("Y: %d\nH: %2.2f\nW:%2.2f\nPadding: %d\n", c_y, t_y, t_x, t_p);
-        M5.Display.printf("Y Advance: %d\n", metrics.y_advance); // This here, this is the actual Y height of the text
+        printPage(M5.Display, sample);
+        M5.Display.endWrite();
     }
     App::Choices loop() {
         return App::Text;
     }
     void shutdown() {
 
+    }
+protected:
+    uint8_t getTextHeight(M5GFX display) {
+        const lgfx::v1::IFont* font = display.getFont();
+        lgfx::v1::FontMetrics metrics;
+        font->getDefaultMetric(&metrics);
+        return metrics.y_advance * display.getTextSizeY();
+    }
+
+    bool endOfPage(M5GFX display) {
+        return display.getCursorY() + getTextHeight(display) > display.height();
+    }
+    
+    int printPage(M5GFX display, String s, int index = 0) {
+        int next = index;
+        bool in_whitespace = false;
+        display.setTextWrap(false, false);
+
+        for (int i = index; i < s.length(); i++) {
+            if (endOfPage(display)) {
+                break;
+            }
+            if (s.charAt(i) == '\n') {
+                if (! in_whitespace) {
+                    String word = s.substring(next, i);
+                    if (display.textWidth(word) + display.getCursorX() > display.width()) {
+                        display.print("\n");
+                        if (endOfPage(display)) {
+                            break;
+                        }
+                        word.trim();
+                        display.print(word);
+                        next = i;
+                    } else {
+                        display.print(word);
+                        next = i;
+                    }
+                }
+                in_whitespace = true;
+                display.print("\n");
+                if (endOfPage(display)) {
+                    break;
+                }
+            } else if (s.charAt(i) == ' ') {
+                if (! in_whitespace) {
+                    String word = s.substring(next, i);
+                    if (display.textWidth(word) + display.getCursorX() > display.width()) {
+                        display.print("\n");
+                        if (endOfPage(display)) {
+                            break;
+                        }
+                        word.trim();
+                        display.print(word);
+                        next = i;
+                    } else {
+                        display.print(word);
+                        next = i;
+                    }
+                }
+                in_whitespace = true;
+                next = i;
+            } else if (i == s.length() - 1) {
+                // End of the input, print it if we can.
+
+                String word = s.substring(next);
+                if (display.textWidth(words) + display.getCursorX() > display.width()) {
+                    display.print("\n");
+                    if (endOfPage(display)) {
+                        break;
+                    }
+                    word.trim();
+                    display.print(word);
+                    next = i;
+                } else {
+                    display.print(word);
+                    next = i;
+                }
+            } else {
+                in_whitespace = false;
+            }
+        }
+        return next;
     }
 };
 
