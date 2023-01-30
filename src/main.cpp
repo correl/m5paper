@@ -19,6 +19,7 @@ class OTA: public App {
 public:
     OTA() {
         M5.Display.setEpdMode(epd_text);
+        M5.Display.setRotation(0);
         M5.Display.clearDisplay(TFT_WHITE);
         M5.Display.setFont(&fonts::Font0);
         M5.Display.print("Connecting to WiFi");
@@ -90,6 +91,7 @@ class System: public App {
 public:
     System() {
         M5.Display.setEpdMode(epd_text);
+        M5.Display.setRotation(0);
         M5.Display.startWrite();
         M5.Display.clearDisplay(TFT_WHITE);
         M5.Display.setFont(&fonts::Font0);
@@ -97,7 +99,7 @@ public:
 
         button_ota.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Update", 3, 3);
         button_ota.drawButton();
-        button_lifetracker.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2 + 150, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Life Tracker", 3, 3);
+        button_lifetracker.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2 + 150, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Tracker", 3, 3);
         button_lifetracker.drawButton();
         button_power.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2 + 300, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Power", 3, 3);
         button_power.drawButton();
@@ -154,6 +156,7 @@ class Clock: public App {
 public:
     Clock() {
         M5.Display.setEpdMode(epd_quality);
+        M5.Display.setRotation(0);
         M5.Display.clearDisplay(TFT_WHITE);
         M5.Display.setEpdMode(epd_fast);
         M5.Display.setFont(&fonts::Orbitron_Light_32);
@@ -203,6 +206,7 @@ public:
             "Time to die.";
         M5.Display.startWrite();
         M5.Display.setEpdMode(epd_quality);
+        M5.Display.setRotation(0);
         M5.Display.clearDisplay(TFT_WHITE);
         M5.Display.setFont(&fonts::FreeSans9pt7b);
         M5.Display.setTextSize(2);
@@ -303,32 +307,198 @@ protected:
 class LifeTracker: public App {
 public:
     LifeTracker() {
+        mode = Playing;
         for (int i = 0; i < 4; i++) {
             players[i] = new Player;
         }
-        initPlayers();
         M5.Display.setEpdMode(epd_quality);
-        M5.Display.clearDisplay(TFT_WHITE);
+        M5.Display.setRotation(1);
         M5.Display.setFont(&fonts::Orbitron_Light_32);
-        M5.Display.setTextSize(2);
-        M5.Display.println("Life Tracker");
+        M5.Display.setTextSize(3);
+        sidebarRect = {.x=0, .y=0, .width=M5.Display.width() / 10, .height=M5.Display.height(), .rotation=0};
+
+        M5.Display.startWrite();
+        M5.Display.clearDisplay(TFT_WHITE);
+
+        // Sidebar
+        M5.Display.fillRect(sidebarRect.x, sidebarRect.y, sidebarRect.width, sidebarRect.height, TFT_BLACK);
+
+        // Players
+        for (int i = 0; i < 4; i++) {
+            int x_offset = sidebarRect.width;
+            int width = (M5.Display.width() - x_offset) / 2;
+            int height = M5.Display.height() / 2;
+            switch (i + 1) {
+            case 1:
+                playerRect[i] = { .x=sidebarRect.width, .y=0, .width=width, .height=height, .rotation=2};
+                break;
+            case 2:
+                playerRect[i] = { .x=sidebarRect.width + width, .y=0, .width=width, .height=height, .rotation=2};
+                break;
+            case 3:
+                playerRect[i] = { .x=sidebarRect.width, .y=height, .width=width, .height=height, .rotation=0};
+                break;
+            case 4:
+                playerRect[i] = { .x=sidebarRect.width + width, .y=height, .width=width, .height=height, .rotation=0};
+                break;
+            }
+            drawPlayer(i);
+        }
+
+        M5.Display.endWrite();
     }
+
     App::Choices loop () {
+        auto t = M5.Touch.getDetail();
+        if (t.wasPressed()) {
+            switch (mode) {
+            case Playing:
+                if (sidebarRect.contains(t.x, t.y)) {
+                    showConfirm();
+                    mode = ConfirmReset;
+                } else {
+                    for (int i = 0; i < 4; i++) clickPlayer(i, t.x, t.y);
+                }
+                break;
+            case ConfirmReset:
+                if (button_ok.contains(t.x, t.y)) {
+                    button_ok.press(true);
+                    M5.Display.startWrite();
+                    for (int i = 0; i < 4; i++) {
+                        players[i]->lifeTotal = 40;
+                        drawPlayer(i);
+                    }
+                    M5.Display.endWrite();
+                    mode = Playing;
+                } else if (button_cancel.contains(t.x, t.y)) {
+                    button_cancel.press(true);
+                    for (int i = 0; i < 4; i++) drawPlayer(i);
+                    mode = Playing;
+                }
+                break;
+            }
+        }
         return App::LifeTracker;
     }
     void shutdown() {
-
+        for (int i = 0; i < 4; i++) {
+            delete players[i];
+        }
     }
 protected:
-    struct Player {
+    enum Mode {Playing, ConfirmReset};
+    Mode mode;
+    class Player {
+    public:
+        Player() {
+            lifeTotal = 40;
+        }
         int lifeTotal;
     };
-    Player* players[4];
+    int sidebarWidth;
+    int sidebarHeight;
+    int playerHeight;
+    int playerWidth;
+    struct Rect {
+        int x;
+        int y;
+        int width;
+        int height;
+        int rotation;
 
-    void initPlayers(int startingLife = 40) {
-        for (int i = 0; i < 4; i++) {
-            players[i]->lifeTotal = startingLife;
+        bool contains(int _x, int _y) {
+            return _x >= x && _x <= (x + width) && _y >= y && _y <= (y + height);
         }
+    };
+    Player* players[4];
+    Rect sidebarRect;
+    Rect playerRect[4];
+    LGFX_Button button_ok;
+    LGFX_Button button_cancel;
+
+    void drawPlayer(int player) {
+        if (player < 0 || player >= 4) return;
+
+        Rect rect = playerRect[player];
+        int border = 5;
+        M5Canvas canvas(&M5.Display);
+        canvas.createSprite(rect.width, rect.height);
+        canvas.fillSprite(TFT_LIGHTGRAY);
+        canvas.fillRect(border, border, rect.width - border, rect.height - border, TFT_WHITE);
+        canvas.setRotation(rect.rotation);
+        canvas.setTextColor(TFT_BLACK);
+        canvas.setFont(&fonts::FreeMono24pt7b);
+        canvas.setTextSize(1);
+        canvas.drawString("-1", border * 2, border * 2);
+        canvas.drawString("-5", border * 2, rect.height - border * 2 - canvas.fontHeight());
+        canvas.drawString("+1", rect.width - border * 2 - canvas.textWidth("+1"), border * 2);
+        canvas.drawString("+5", rect.width - border * 2 - canvas.textWidth("+5"), rect.height - border * 2 - canvas.fontHeight());
+        int separator_y = 2 * rect.height / 3;
+        int separator_length = rect.width / 5;
+        canvas.fillRect(0, separator_y, separator_length, border, TFT_LIGHTGRAY);
+        canvas.fillRect(rect.width - separator_length, separator_y, separator_length, border, TFT_LIGHTGRAY);
+        canvas.setFont(&fonts::Orbitron_Light_32);
+        canvas.setTextSize(3);
+        canvas.drawCenterString(String(players[player]->lifeTotal, DEC), rect.width / 2, (rect.height / 2) - (canvas.fontHeight() / 2));
+        canvas.pushSprite(rect.x, rect.y);
+    }
+
+    void clickPlayer(int player, int x, int y) {
+        Rect* rect = &playerRect[player];
+        if (! rect->contains(x, y)) return;
+
+        int rel_x;
+        int rel_y;
+        int life_change;
+        int life_multiplier;
+
+        rel_x = x - rect->x;
+        rel_y = y - rect->y;
+        switch(rect->rotation) {
+        case 2:
+            // Flipped 180 degrees
+            rel_x = rect->width - rel_x;
+            rel_y = rect->height - rel_y;
+        }
+
+        if (rel_x > rect->width / 2) {
+            life_change = 1;
+        } else {
+            life_change = -1;
+        }
+        if (rel_y < 2 * rect->height / 3) {
+            life_multiplier = 1;
+        } else {
+            life_multiplier = 5;
+        }
+
+        players[player]->lifeTotal += (life_change * life_multiplier);
+        drawPlayer(player);
+    }
+
+    void showConfirm() {
+        int play_area_width = M5.Display.width() - sidebarRect.width;
+        int play_area_height = M5.Display.height();
+        int width = 2 * play_area_width / 3;
+        int height = 2 * play_area_height / 3;
+        int x = sidebarRect.width + (play_area_width - width) / 2;
+        int y = (play_area_height - height) / 2;
+        int border = 10;
+        int button_width = width / 3;
+
+        M5.Display.startWrite();
+        M5.Display.fillRect(x, y, width, height, TFT_DARKGRAY);
+        M5.Display.fillRect(x + border, y + border, width - border * 2, height - border * 2, TFT_WHITE);
+        M5.Display.setFont(&fonts::Orbitron_Light_32);
+        M5.Display.setTextSize(2);
+        M5.Display.drawCenterString("Reset game?", x + (width / 2), y + (border * 2));
+        M5.Display.setFont(&fonts::Font0);
+        M5.Display.setTextSize(1);
+        button_ok.initButton(&M5.Display, x + 2 * button_width / 3, y + height - 100, button_width, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "OK", 3, 3);
+        button_ok.drawButton();
+        button_cancel.initButton(&M5.Display, x + width - 2 * button_width / 3, y + height - 100, button_width, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Cancel", 3, 3);
+        button_cancel.drawButton();
+        M5.Display.endWrite();
     }
 };
 
