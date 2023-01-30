@@ -10,7 +10,7 @@ using namespace std;
 
 class App {
 public:
-    enum Choices {Clock, System, OTA, Text};
+    enum Choices {Clock, System, OTA, Text, LifeTracker};
     virtual Choices loop() = 0;
     virtual void shutdown() = 0;
 };
@@ -97,11 +97,14 @@ public:
 
         button_ota.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Update", 3, 3);
         button_ota.drawButton();
-        button_power.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2 + 200, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Power", 3, 3);
+        button_lifetracker.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2 + 150, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Life Tracker", 3, 3);
+        button_lifetracker.drawButton();
+        button_power.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2 + 300, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Power", 3, 3);
         button_power.drawButton();
         M5.Display.endWrite();
         button_power.press(false);
         button_ota.press(false);
+        button_lifetracker.press(false);
     }
     App::Choices loop() {
         auto t = M5.Touch.getDetail();
@@ -116,9 +119,15 @@ public:
             } else {
                 button_ota.press(false);
             }
+            if (button_lifetracker.contains(t.x, t.y)) {
+                button_lifetracker.press(true);
+            } else {
+                button_lifetracker.press(false);
+            }
         } else {
             button_power.press(false);
             button_ota.press(false);
+            button_lifetracker.press(false);
         }
         if (button_power.justReleased()) {
             M5.Display.clearDisplay(TFT_WHITE);
@@ -126,6 +135,9 @@ public:
         }
         if (button_ota.justReleased()) {
             return App::OTA;
+        }
+        if (button_lifetracker.justReleased()) {
+            return App::LifeTracker;
         }
         return App::System;
     }
@@ -135,6 +147,7 @@ public:
 protected:
     LGFX_Button button_power;
     LGFX_Button button_ota;
+    LGFX_Button button_lifetracker;
 };
 
 class Clock: public App {
@@ -287,6 +300,38 @@ protected:
     }
 };
 
+class LifeTracker: public App {
+public:
+    LifeTracker() {
+        for (int i = 0; i < 4; i++) {
+            players[i] = new Player;
+        }
+        initPlayers();
+        M5.Display.setEpdMode(epd_quality);
+        M5.Display.clearDisplay(TFT_WHITE);
+        M5.Display.setFont(&fonts::Orbitron_Light_32);
+        M5.Display.setTextSize(2);
+        M5.Display.println("Life Tracker");
+    }
+    App::Choices loop () {
+        return App::LifeTracker;
+    }
+    void shutdown() {
+
+    }
+protected:
+    struct Player {
+        int lifeTotal;
+    };
+    Player* players[4];
+
+    void initPlayers(int startingLife = 40) {
+        for (int i = 0; i < 4; i++) {
+            players[i]->lifeTotal = startingLife;
+        }
+    }
+};
+
 App* app;
 App::Choices current_app;
 
@@ -319,6 +364,9 @@ void switch_app(App::Choices next) {
         break;
     case App::System:
         app = new System;
+        break;
+    case App::LifeTracker:
+        app = new LifeTracker;
         break;
     case App::OTA:
     default:
