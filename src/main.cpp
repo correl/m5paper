@@ -267,7 +267,7 @@ protected:
                 // End of the input, print it if we can.
 
                 String word = s.substring(next);
-                if (display.textWidth(words) + display.getCursorX() > display.width()) {
+                if (display.textWidth(word) + display.getCursorX() > display.width()) {
                     display.print("\n");
                     if (endOfPage(display)) {
                         break;
