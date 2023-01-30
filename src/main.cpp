@@ -144,6 +144,7 @@ public:
         M5.Display.clearDisplay(TFT_WHITE);
         M5.Display.setEpdMode(epd_fast);
         M5.Display.setFont(&fonts::Orbitron_Light_32);
+        M5.Display.setTextSize(3);
     }
     App::Choices loop() {
         static constexpr const char* const wd[7] = {"Sun","Mon","Tue","Wed","Thr","Fri","Sat"};
