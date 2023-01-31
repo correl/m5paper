@@ -571,8 +571,8 @@ void setup(void) {
     M5.Display.setCursor(0, M5.Display.height() / 4);
     M5.Display.println("Starting up...");
 
-    app = new Clock;
-    current_app = App::Clock;
+    app = new LifeTracker;
+    current_app = App::LifeTracker;
 }
 
 void switch_app(App::Choices next) {
