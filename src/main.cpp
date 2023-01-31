@@ -308,9 +308,6 @@ class LifeTracker: public App {
 public:
     LifeTracker() {
         mode = Playing;
-        for (int i = 0; i < 4; i++) {
-            players[i] = new Player;
-        }
         M5.Display.setEpdMode(epd_quality);
         M5.Display.setRotation(1);
         M5.Display.setFont(&fonts::Orbitron_Light_32);
@@ -332,18 +329,20 @@ public:
             int x_offset = sidebarRect.width;
             int width = (M5.Display.width() - x_offset) / 2;
             int height = M5.Display.height() / 2;
+
+            players[i].lifeTotal = 40;
             switch (i + 1) {
             case 1:
-                playerRect[i] = { .x=sidebarRect.width, .y=0, .width=width, .height=height, .rotation=2};
+                players[i].rect = { .x=sidebarRect.width, .y=0, .width=width, .height=height, .rotation=2};
                 break;
             case 2:
-                playerRect[i] = { .x=sidebarRect.width + width, .y=0, .width=width, .height=height, .rotation=2};
+                players[i].rect = { .x=sidebarRect.width + width, .y=0, .width=width, .height=height, .rotation=2};
                 break;
             case 3:
-                playerRect[i] = { .x=sidebarRect.width, .y=height, .width=width, .height=height, .rotation=0};
+                players[i].rect = { .x=sidebarRect.width, .y=height, .width=width, .height=height, .rotation=0};
                 break;
             case 4:
-                playerRect[i] = { .x=sidebarRect.width + width, .y=height, .width=width, .height=height, .rotation=0};
+                players[i].rect = { .x=sidebarRect.width + width, .y=height, .width=width, .height=height, .rotation=0};
                 break;
             }
             drawPlayer(i);
@@ -370,7 +369,7 @@ public:
                     button_ok.press(true);
                     M5.Display.startWrite();
                     for (int i = 0; i < 4; i++) {
-                        players[i]->lifeTotal = 40;
+                        players[i].lifeTotal = 40;
                         drawPlayer(i);
                     }
                     M5.Display.endWrite();
@@ -408,24 +407,11 @@ public:
     }
 
     void shutdown() {
-        for (int i = 0; i < 4; i++) {
-            delete players[i];
-        }
     }
+
 protected:
     enum Mode {Playing, ConfirmReset};
     Mode mode;
-    class Player {
-    public:
-        Player() {
-            lifeTotal = 40;
-        }
-        int lifeTotal;
-    };
-    int sidebarWidth;
-    int sidebarHeight;
-    int playerHeight;
-    int playerWidth;
     struct Rect {
         int x;
         int y;
@@ -437,9 +423,12 @@ protected:
             return _x >= x && _x <= (x + width) && _y >= y && _y <= (y + height);
         }
     };
-    Player* players[4];
+    struct Player {
+        int lifeTotal;
+        Rect rect;
+    };
     Rect sidebarRect;
-    Rect playerRect[4];
+    Player players[4];
     LGFX_Button button_ok;
     LGFX_Button button_cancel;
     time_t next_clock_update;
@@ -447,32 +436,32 @@ protected:
     void drawPlayer(int player) {
         if (player < 0 || player >= 4) return;
 
-        Rect rect = playerRect[player];
+        Rect* rect = &players[player].rect;
         int border = 5;
         M5Canvas canvas(&M5.Display);
-        canvas.createSprite(rect.width, rect.height);
+        canvas.createSprite(rect->width, rect->height);
         canvas.fillSprite(TFT_LIGHTGRAY);
-        canvas.fillRect(border, border, rect.width - border, rect.height - border, TFT_WHITE);
-        canvas.setRotation(rect.rotation);
+        canvas.fillRect(border, border, rect->width - border, rect->height - border, TFT_WHITE);
+        canvas.setRotation(rect->rotation);
         canvas.setTextColor(TFT_BLACK);
         canvas.setFont(&fonts::FreeMono24pt7b);
         canvas.setTextSize(1);
         canvas.drawString("-1", border * 2, border * 2);
-        canvas.drawString("-5", border * 2, rect.height - border * 2 - canvas.fontHeight());
-        canvas.drawString("+1", rect.width - border * 2 - canvas.textWidth("+1"), border * 2);
-        canvas.drawString("+5", rect.width - border * 2 - canvas.textWidth("+5"), rect.height - border * 2 - canvas.fontHeight());
-        int separator_y = 2 * rect.height / 3;
-        int separator_length = rect.width / 5;
+        canvas.drawString("-5", border * 2, rect->height - border * 2 - canvas.fontHeight());
+        canvas.drawString("+1", rect->width - border * 2 - canvas.textWidth("+1"), border * 2);
+        canvas.drawString("+5", rect->width - border * 2 - canvas.textWidth("+5"), rect->height - border * 2 - canvas.fontHeight());
+        int separator_y = 2 * rect->height / 3;
+        int separator_length = rect->width / 5;
         canvas.fillRect(0, separator_y, separator_length, border, TFT_LIGHTGRAY);
-        canvas.fillRect(rect.width - separator_length, separator_y, separator_length, border, TFT_LIGHTGRAY);
+        canvas.fillRect(rect->width - separator_length, separator_y, separator_length, border, TFT_LIGHTGRAY);
         canvas.setFont(&fonts::Orbitron_Light_32);
         canvas.setTextSize(3);
-        canvas.drawCenterString(String(players[player]->lifeTotal, DEC), rect.width / 2, (rect.height / 2) - (canvas.fontHeight() / 2));
-        canvas.pushSprite(rect.x, rect.y);
+        canvas.drawCenterString(String(players[player].lifeTotal, DEC), rect->width / 2, (rect->height / 2) - (canvas.fontHeight() / 2));
+        canvas.pushSprite(rect->x, rect->y);
     }
 
     void clickPlayer(int player, int x, int y) {
-        Rect* rect = &playerRect[player];
+        Rect* rect = &players[player].rect;
         if (! rect->contains(x, y)) return;
 
         int rel_x;
@@ -500,7 +489,7 @@ protected:
             life_multiplier = 5;
         }
 
-        players[player]->lifeTotal += (life_change * life_multiplier);
+        players[player].lifeTotal += (life_change * life_multiplier);
         drawPlayer(player);
     }
 
