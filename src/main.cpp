@@ -418,7 +418,6 @@ public:
         }
 
         M5.Display.endWrite();
-        sleep();
     }
 
     App::Choices loop () {
@@ -456,25 +455,9 @@ public:
             next_clock_update = next_minute(current_time);
             drawClock(current_time);
             drawBattery();
-        } else {
-            sleep();
         }
         return App::LifeTracker;
     }
-
-    void sleep() {
-        const time_t current_time = time(nullptr);
-        if (current_time >= next_clock_update) return;
-
-        int seconds = next_clock_update - current_time;
-        esp_sleep_enable_ext0_wakeup(GPIO_NUM_36, LOW); // Wake on touch
-        esp_sleep_enable_ext0_wakeup(GPIO_NUM_37, LOW); // Wake on button up
-        esp_sleep_enable_ext0_wakeup(GPIO_NUM_38, LOW); // Wake on button middle
-        esp_sleep_enable_ext0_wakeup(GPIO_NUM_39, LOW); // Wake on button down
-        esp_sleep_enable_timer_wakeup(seconds * 1000); // Wake up at the next clock update (in microseconds)
-        esp_light_sleep_start();
-    }
-
     void shutdown() {
     }
 
