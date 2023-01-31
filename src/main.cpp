@@ -315,13 +315,17 @@ public:
         M5.Display.setRotation(1);
         M5.Display.setFont(&fonts::Orbitron_Light_32);
         M5.Display.setTextSize(3);
-        sidebarRect = {.x=0, .y=0, .width=M5.Display.width() / 10, .height=M5.Display.height(), .rotation=0};
+        sidebarRect = {.x=0, .y=0, .width=M5.Display.width() / 10, .height=M5.Display.height(), .rotation=3};
 
         M5.Display.startWrite();
         M5.Display.clearDisplay(TFT_WHITE);
 
         // Sidebar
-        M5.Display.fillRect(sidebarRect.x, sidebarRect.y, sidebarRect.width, sidebarRect.height, TFT_BLACK);
+        time_t current_time = time(nullptr);
+        next_clock_update = next_minute(current_time);
+        drawSidebar();
+        drawClock(current_time);
+        drawBattery();
 
         // Players
         for (int i = 0; i < 4; i++) {
@@ -378,6 +382,12 @@ public:
                 break;
             }
         }
+        const time_t current_time = time(nullptr);
+        if (current_time >= next_clock_update) {
+            next_clock_update = next_minute(current_time);
+            drawClock(current_time);
+            drawBattery();
+        }
         return App::LifeTracker;
     }
     void shutdown() {
@@ -415,6 +425,7 @@ protected:
     Rect playerRect[4];
     LGFX_Button button_ok;
     LGFX_Button button_cancel;
+    time_t next_clock_update;
 
     void drawPlayer(int player) {
         if (player < 0 || player >= 4) return;
@@ -499,6 +510,49 @@ protected:
         button_cancel.initButton(&M5.Display, x + width - 2 * button_width / 3, y + height - 100, button_width, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Cancel", 3, 3);
         button_cancel.drawButton();
         M5.Display.endWrite();
+    }
+
+    void drawSidebar() {
+        M5Canvas canvas(&M5.Display);
+        canvas.createSprite(sidebarRect.width, sidebarRect.height);
+        canvas.fillSprite(TFT_BLACK);
+        canvas.setRotation(sidebarRect.rotation);
+        canvas.setTextColor(TFT_WHITE);
+        canvas.setFont(&fonts::Orbitron_Light_32);
+        canvas.setTextSize(1);
+        canvas.drawCenterString("TAP TO", canvas.width() / 2, (canvas.height() / 2) - canvas.fontHeight());
+        canvas.drawCenterString("RESET", canvas.width() / 2, (canvas.height() / 2));
+        canvas.pushSprite(sidebarRect.x, sidebarRect.y);
+    }
+
+    time_t next_minute(time_t timestamp) {
+        return 60 * ((timestamp / 60) + 1);
+    }
+
+    void drawClock(time_t t) {
+        M5Canvas canvas(&M5.Display);
+        canvas.setFont(&fonts::Orbitron_Light_32);
+        canvas.setTextSize(1);
+        canvas.createSprite(canvas.fontHeight(), canvas.textWidth("00:00"));
+        canvas.fillSprite(TFT_BLACK);
+        canvas.setTextColor(TFT_WHITE);
+        canvas.setRotation(3);
+        auto tm = localtime(&t);
+        canvas.printf("%02d:%02d", tm->tm_hour, tm->tm_min);
+        canvas.pushSprite(0, 0);
+    }
+
+    void drawBattery() {
+        M5Canvas canvas(&M5.Display);
+        canvas.setFont(&fonts::Font0);
+        canvas.setTextSize(3);
+        canvas.createSprite(canvas.fontHeight(), canvas.textWidth("100%"));
+        canvas.fillSprite(TFT_BLACK);
+        canvas.setTextColor(TFT_WHITE);
+        canvas.setRotation(3);
+        int battery = M5.Power.getBatteryLevel();
+        canvas.printf("%3d%%", battery);
+        canvas.pushSprite(0, M5.Display.height() - canvas.width());
     }
 };
 
