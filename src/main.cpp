@@ -39,17 +39,6 @@ public:
         M5.Display.print("IP address: ");
         M5.Display.println(WiFi.localIP());
 
-        M5.Display.print("Syncing time");
-        configTzTime(NTP_TIMEZONE, NTP_SERVER1, NTP_SERVER2, NTP_SERVER3);
-        while (sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED) {
-            M5.Display.print('.');
-            delay(1000);
-        }
-        M5.Display.println("");
-        time_t t = time(nullptr)+1; // Advance one second.
-        while (t > time(nullptr));  /// Synchronization in seconds
-        M5.Rtc.setDateTime( gmtime( &t ) );
-
         server = new AsyncWebServer(80);
         server->on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
             request->send(200, "text/plain", "Hi! I am ESP32.");
@@ -144,11 +133,11 @@ public:
         M5.Display.setCursor(0, 10);
 
         int buttonHeight = 100;
-        int buttonWidth = 300;
+        int buttonWidth = 400;
         int buttonSpacing = 50;
 
-        int y = M5.Display.height() / 2 - (4 * (buttonHeight + buttonSpacing)) / 2;
-        for (int i = 0; i < 3; i++) {
+        int y = M5.Display.height() / 2 - (NUM_APPS * (buttonHeight + buttonSpacing)) / 2;
+        for (int i = 0; i < NUM_APPS; i++) {
             buttons[i].button.initButton(&M5.Display,
                                          M5.Display.width() / 2,
                                          y + (i * (buttonHeight + buttonSpacing)),
@@ -165,12 +154,12 @@ public:
 
         button_power.initButton(&M5.Display,
                                 M5.Display.width() / 2,
-                                y + (3 * (buttonHeight + buttonSpacing)),
+                                y + (NUM_APPS * (buttonHeight + buttonSpacing)),
                                 buttonWidth,
                                 buttonHeight,
                                 TFT_BLACK,
-                                TFT_LIGHTGRAY,
-                                TFT_BLACK,
+                                TFT_DARKGRAY,
+                                TFT_WHITE,
                                 "Power",
                                 3,
                                 3);
@@ -180,14 +169,31 @@ public:
     App::Choices loop() {
         auto t = M5.Touch.getDetail();
         if (t.wasPressed()) {
-            if (button_power.contains(t.x, t.y)) {
+            if (!button_power.isPressed() && button_power.contains(t.x, t.y)) {
                 button_power.press(true);
-            } else {
+                button_power.drawButton(true);
+            } else if (button_power.isPressed()) {
                 button_power.press(false);
+                button_power.drawButton(false);
             }
-            for (auto button: buttons) {
-                if (button.button.contains(t.x, t.y)) {
-                    button.button.press(true);
+            for (int i = 0; i < NUM_APPS; i++) {
+                if (!buttons[i].button.isPressed() && buttons[i].button.contains(t.x, t.y)) {
+                    buttons[i].button.press(true);
+                    buttons[i].button.drawButton(true);
+                } else if (buttons[i].button.isPressed()) {
+                    buttons[i].button.press(false);
+                    buttons[i].button.drawButton(false);
+                }
+            }
+        } else {
+            if (button_power.isPressed()) {
+                button_power.press(false);
+                button_power.drawButton(false);
+            }
+            for (int i = 0; i < NUM_APPS; i++) {
+                if (buttons[i].button.isPressed()) {
+                    buttons[i].button.press(false);
+                    buttons[i].button.drawButton(false);
                 }
             }
         }
@@ -211,10 +217,13 @@ protected:
         const char* text;
         LGFX_Button button;
     };
-    System_Button buttons[3] = {
-        {.app=App::OTA, .text="Update"},
-        {.app=App::NTPSync, .text="Sync Time"},
-        {.app=App::LifeTracker, .text="Tracker"},
+    static const int NUM_APPS = 5;
+    System_Button buttons[NUM_APPS] = {
+        {.app=App::Clock, .text="Clock"},
+        {.app=App::Text, .text="Text Demo"},
+        {.app=App::LifeTracker, .text="EDH Tracker"},
+        {.app=App::OTA, .text="OTA Update"},
+        {.app=App::NTPSync, .text="NTP Sync"},
     };
     LGFX_Button button_power;
 };
@@ -637,8 +646,8 @@ void setup(void) {
     M5.Display.setCursor(0, M5.Display.height() / 4);
     M5.Display.println("Starting up...");
 
-    app = new LifeTracker;
-    current_app = App::LifeTracker;
+    app = new System;
+    current_app = App::System;
 }
 
 void switch_app(App::Choices next) {
@@ -657,6 +666,9 @@ void switch_app(App::Choices next) {
         break;
     case App::LifeTracker:
         app = new LifeTracker;
+        break;
+    case App::NTPSync:
+        app = new NTPSync;
         break;
     case App::OTA:
     default:
