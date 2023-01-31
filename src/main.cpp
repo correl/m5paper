@@ -206,6 +206,8 @@ public:
                 return button.app;
             }
         }
+        ESP_LOGD("System", "Going to sleep");
+        M5.Power.lightSleep(0, true);
         return App::System;
     }
     void shutdown() {
@@ -452,9 +454,14 @@ public:
         }
         const time_t current_time = time(nullptr);
         if (current_time >= next_clock_update) {
+            ESP_LOGD("LifeTracker", "Updating clock and battery display");
             next_clock_update = next_minute(current_time);
             drawClock(current_time);
             drawBattery();
+        } else {
+            int seconds = next_clock_update - current_time;
+            ESP_LOGD("LifeTracker", "Sleep for %d seconds", seconds);
+            M5.Power.lightSleep(seconds * 1000000, true); // Delay in microseconds
         }
         return App::LifeTracker;
     }
