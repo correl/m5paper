@@ -10,7 +10,7 @@ using namespace std;
 
 class App {
 public:
-    enum Choices {Clock, System, OTA, Text, LifeTracker};
+    enum Choices {Clock, System, OTA, NTPSync, Text, LifeTracker};
     virtual Choices loop() = 0;
     virtual void shutdown() = 0;
 };
@@ -22,6 +22,7 @@ public:
         M5.Display.setRotation(0);
         M5.Display.clearDisplay(TFT_WHITE);
         M5.Display.setFont(&fonts::Font0);
+        M5.Display.setTextSize(3);
         M5.Display.print("Connecting to WiFi");
         WiFi.mode(WIFI_STA);
         WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -87,6 +88,51 @@ protected:
     AsyncWebServer* server;
 };
 
+class NTPSync: public App {
+public:
+    NTPSync() {
+        M5.Display.setEpdMode(epd_text);
+        M5.Display.setRotation(0);
+        M5.Display.clearDisplay(TFT_WHITE);
+        M5.Display.setFont(&fonts::Font0);
+        M5.Display.setTextSize(3);
+        M5.Display.print("Connecting to WiFi");
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+        M5.Display.println("");
+
+        // Wait for connection
+        while (WiFi.status() != WL_CONNECTED) {
+            delay(500);
+            M5.Display.print(".");
+        }
+        M5.Display.println("");
+        M5.Display.print("Connected to ");
+        M5.Display.println(WIFI_SSID);
+        M5.Display.print("IP address: ");
+        M5.Display.println(WiFi.localIP());
+
+        M5.Display.print("Syncing time");
+        configTzTime(NTP_TIMEZONE, NTP_SERVER1, NTP_SERVER2, NTP_SERVER3);
+        while (sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED) {
+            M5.Display.print('.');
+            delay(1000);
+        }
+        time_t t = time(nullptr)+1; // Advance one second.
+        while (t > time(nullptr));  /// Synchronization in seconds
+        M5.Rtc.setDateTime( gmtime( &t ) );
+        M5.Display.println("ok");
+    }
+    App::Choices loop() {
+        return App::System;
+    }
+    void shutdown() {
+        M5.Display.print("Disconnecting WiFi...");
+        WiFi.disconnect();
+        M5.Display.println("ok");
+    }
+};
+
 class System: public App {
 public:
     System() {
@@ -97,16 +143,39 @@ public:
         M5.Display.setFont(&fonts::Font0);
         M5.Display.setCursor(0, 10);
 
-        button_ota.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Update", 3, 3);
-        button_ota.drawButton();
-        button_lifetracker.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2 + 150, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Tracker", 3, 3);
-        button_lifetracker.drawButton();
-        button_power.initButton(&M5.Display, M5.Display.width() / 2, M5.Display.height() / 2 + 300, 200, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Power", 3, 3);
+        int buttonHeight = 100;
+        int buttonWidth = 300;
+        int buttonSpacing = 50;
+
+        int y = M5.Display.height() / 2 - (4 * (buttonHeight + buttonSpacing)) / 2;
+        for (int i = 0; i < 3; i++) {
+            buttons[i].button.initButton(&M5.Display,
+                                         M5.Display.width() / 2,
+                                         y + (i * (buttonHeight + buttonSpacing)),
+                                         buttonWidth,
+                                         buttonHeight,
+                                         TFT_BLACK,
+                                         TFT_LIGHTGRAY,
+                                         TFT_BLACK,
+                                         buttons[i].text,
+                                         3,
+                                         3);
+            buttons[i].button.drawButton();
+        }
+
+        button_power.initButton(&M5.Display,
+                                M5.Display.width() / 2,
+                                y + (3 * (buttonHeight + buttonSpacing)),
+                                buttonWidth,
+                                buttonHeight,
+                                TFT_BLACK,
+                                TFT_LIGHTGRAY,
+                                TFT_BLACK,
+                                "Power",
+                                3,
+                                3);
         button_power.drawButton();
         M5.Display.endWrite();
-        button_power.press(false);
-        button_ota.press(false);
-        button_lifetracker.press(false);
     }
     App::Choices loop() {
         auto t = M5.Touch.getDetail();
@@ -116,30 +185,20 @@ public:
             } else {
                 button_power.press(false);
             }
-            if (button_ota.contains(t.x, t.y)) {
-                button_ota.press(true);
-            } else {
-                button_ota.press(false);
+            for (auto button: buttons) {
+                if (button.button.contains(t.x, t.y)) {
+                    button.button.press(true);
+                }
             }
-            if (button_lifetracker.contains(t.x, t.y)) {
-                button_lifetracker.press(true);
-            } else {
-                button_lifetracker.press(false);
-            }
-        } else {
-            button_power.press(false);
-            button_ota.press(false);
-            button_lifetracker.press(false);
         }
-        if (button_power.justReleased()) {
+        if (button_power.justPressed()) {
             M5.Display.clearDisplay(TFT_WHITE);
             M5.Power.powerOff();
         }
-        if (button_ota.justReleased()) {
-            return App::OTA;
-        }
-        if (button_lifetracker.justReleased()) {
-            return App::LifeTracker;
+        for (auto button: buttons) {
+            if (button.button.justPressed()) {
+                return button.app;
+            }
         }
         return App::System;
     }
@@ -147,9 +206,17 @@ public:
 
     }
 protected:
+    struct System_Button {
+        App::Choices app;
+        const char* text;
+        LGFX_Button button;
+    };
+    System_Button buttons[3] = {
+        {.app=App::OTA, .text="Update"},
+        {.app=App::NTPSync, .text="Sync Time"},
+        {.app=App::LifeTracker, .text="Tracker"},
+    };
     LGFX_Button button_power;
-    LGFX_Button button_ota;
-    LGFX_Button button_lifetracker;
 };
 
 class Clock: public App {
@@ -221,15 +288,8 @@ public:
 
     }
 protected:
-    uint8_t getTextHeight(M5GFX display) {
-        const lgfx::v1::IFont* font = display.getFont();
-        lgfx::v1::FontMetrics metrics;
-        font->getDefaultMetric(&metrics);
-        return metrics.y_advance * display.getTextSizeY();
-    }
-
     bool endOfPage(M5GFX display) {
-        return display.getCursorY() + getTextHeight(display) > display.height();
+        return display.getCursorY() + display.fontHeight() > display.height();
     }
     
     int printPage(M5GFX display, String s, int index = 0) {
