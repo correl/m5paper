@@ -390,6 +390,7 @@ public:
 
         // Sidebar
         time_t current_time = time(nullptr);
+        last_interaction_time = current_time;
         next_clock_update = next_minute(current_time);
         drawSidebar();
         drawClock(current_time);
@@ -424,7 +425,10 @@ public:
 
     App::Choices loop () {
         auto t = M5.Touch.getDetail();
+        const time_t current_time = time(nullptr);
         if (t.wasPressed()) {
+            last_interaction_time = current_time;
+
             switch (mode) {
             case Playing:
                 if (sidebarRect.contains(t.x, t.y)) {
@@ -452,16 +456,17 @@ public:
                 break;
             }
         }
-        const time_t current_time = time(nullptr);
         if (current_time >= next_clock_update) {
             ESP_LOGD("LifeTracker", "Updating clock and battery display");
             next_clock_update = next_minute(current_time);
             drawClock(current_time);
             drawBattery();
         } else {
-            int seconds = next_clock_update - current_time;
-            ESP_LOGD("LifeTracker", "Sleep for %d seconds", seconds);
-            M5.Power.lightSleep(seconds * 1000000, true); // Delay in microseconds
+            if (current_time - last_interaction_time > INACTIVITY_THRESHOLD) {
+                int seconds = next_clock_update - current_time;
+                ESP_LOGD("LifeTracker", "Sleep for %d seconds", seconds);
+                M5.Power.lightSleep(seconds * 1000000, true); // Delay in microseconds
+            }
         }
         return App::LifeTracker;
     }
@@ -490,7 +495,9 @@ protected:
     Player players[4];
     LGFX_Button button_ok;
     LGFX_Button button_cancel;
+    time_t last_interaction_time;
     time_t next_clock_update;
+    const int INACTIVITY_THRESHOLD = 10; // Seconds of inactivity before app will enter sleep
 
     void drawPlayer(int player) {
         if (player < 0 || player >= 4) return;
