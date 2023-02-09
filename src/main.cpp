@@ -276,37 +276,62 @@ public:
 class Text: public App {
 public:
     Text() {
-        String sample =
-            "I've seen things you people wouldn't believe.\n"
-            "Attack ships on fire off the shoulder of Orion.\n"
-            "I watched c-beams glitter in the dark near the Tannhäuser Gate.\n"
-            "All those moments will be lost in time, like tears in rain.\n"
-            "Time to die.";
         M5.Display.startWrite();
         M5.Display.setEpdMode(epd_quality);
         M5.Display.setRotation(0);
         M5.Display.clearDisplay(TFT_WHITE);
-        M5.Display.setFont(&fonts::FreeSans9pt7b);
-        M5.Display.setTextSize(2);
-        M5.Display.setCursor(0, 0);
-        printPage(M5.Display, sample);
+        textArea = new M5Canvas(&M5.Display);
+        textArea->createSprite(M5.Display.width() - 50, M5.Display.height() - 50);
+        textArea->setFont(&fonts::DejaVu40);
+        textArea->setTextSize(1);
+        textArea->setTextColor(TFT_BLACK);
+        pages[0] = 0;
+        pages[currentPage + 1] = printPage(textArea, sample);
+        textArea->pushSprite(25, 25);
         M5.Display.endWrite();
     }
     App::Choices loop() {
+        if (M5.BtnA.wasClicked() && currentPage > 0) {
+            currentPage -= 1;
+            printPage(textArea, sample, pages[currentPage]);
+            textArea->pushSprite(25, 25);
+        } else if (M5.BtnC.wasClicked() && pages[currentPage + 1] >= 0) {
+            currentPage += 1;
+            pages[currentPage + 1] = printPage(textArea, sample, pages[currentPage]);
+            textArea->pushSprite(25, 25);
+        }
         return App::Text;
     }
     void shutdown() {
 
     }
 protected:
-    bool endOfPage(M5GFX display) {
-        return display.getCursorY() + display.fontHeight() > display.height();
+    M5Canvas* textArea;
+    int pages[100];
+    int currentPage = 0;
+    String sample =
+        "Here is what to do if you want to get a lift from a Vogon: forget it. "
+        "They are one of the most unpleasant races in the Galaxy.\n\n"
+        "Not actually evil, but bad-tempered, bureaucratic, officious and callous. "
+        "They wouldn't even lift a finger to save their own grandmothers from the Ravenous "
+        "Bugblatter Beast of Traal without orders - signed in triplicate, sent in, sent back, "
+        "queried, lost, found, subjected to public inquiry, lost again, and finally buried in "
+        "soft peat for three months and recycled as firelighters.\n\n"
+        "The best way to get a drink out of a Vogon is to stick your finger down his throat, "
+        "and the best way to irritate him is to feed his grandmother to the Ravenous Bugblatter "
+        "Beast of Traal.\n\n"
+        "On no account should you allow a Vogon to read poetry at you.";
+
+    bool endOfPage(lgfx::LovyanGFX*  display) {
+        return display->getCursorY() + display->fontHeight() > display->height();
     }
     
-    int printPage(M5GFX display, String s, int index = 0) {
+    int printPage(lgfx::LovyanGFX* display, String s, int index = 0) {
         int next = index;
         bool in_whitespace = false;
-        display.setTextWrap(false, false);
+        display->setTextWrap(false, false);
+        display->fillScreen(TFT_WHITE);
+        display->setCursor(0, 0);
 
         for (int i = index; i < s.length(); i++) {
             if (endOfPage(display)) {
@@ -315,37 +340,36 @@ protected:
             if (s.charAt(i) == '\n') {
                 if (! in_whitespace) {
                     String word = s.substring(next, i);
-                    if (display.textWidth(word) + display.getCursorX() > display.width()) {
-                        display.print("\n");
+                    if (display->textWidth(word) + display->getCursorX() > display->width()) {
+                        display->print("\n");
                         if (endOfPage(display)) {
                             break;
                         }
                         word.trim();
-                        display.print(word);
+                        display->print(word);
                         next = i;
                     } else {
-                        display.print(word);
+                        display->print(word);
                         next = i;
                     }
                 }
                 in_whitespace = true;
-                display.print("\n");
                 if (endOfPage(display)) {
                     break;
                 }
             } else if (s.charAt(i) == ' ') {
                 if (! in_whitespace) {
                     String word = s.substring(next, i);
-                    if (display.textWidth(word) + display.getCursorX() > display.width()) {
-                        display.print("\n");
+                    if (display->textWidth(word) + display->getCursorX() > display->width()) {
+                        display->print("\n");
                         if (endOfPage(display)) {
                             break;
                         }
                         word.trim();
-                        display.print(word);
+                        display->print(word);
                         next = i;
                     } else {
-                        display.print(word);
+                        display->print(word);
                         next = i;
                     }
                 }
@@ -355,23 +379,28 @@ protected:
                 // End of the input, print it if we can.
 
                 String word = s.substring(next);
-                if (display.textWidth(word) + display.getCursorX() > display.width()) {
-                    display.print("\n");
+                if (display->textWidth(word) + display->getCursorX() > display->width()) {
+                    display->print("\n");
                     if (endOfPage(display)) {
                         break;
                     }
                     word.trim();
-                    display.print(word);
+                    display->print(word);
                     next = i;
                 } else {
-                    display.print(word);
+                    display->print(word);
                     next = i;
                 }
             } else {
                 in_whitespace = false;
             }
         }
-        return next;
+        next += 1;
+        if (next >= s.length()) {
+            return -1;
+        } else {
+            return next;
+        }
     }
 };
 
@@ -679,12 +708,8 @@ void loop()
     M5.update();
 
     App::Choices next = current_app;
-    if (M5.BtnA.wasClicked()) {
-        next = App::Clock;
-    } else if (M5.BtnB.wasClicked()) {
+    if (M5.BtnB.wasClicked()) {
         next = App::System;
-    } else if (M5.BtnC.wasClicked()) {
-        next = App::Text;
     }
     try {
         if (next != current_app) {
