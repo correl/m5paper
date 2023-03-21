@@ -168,7 +168,7 @@ public:
     }
     App::Choices loop() {
         auto t = M5.Touch.getDetail();
-        if (t.wasPressed()) {
+        if (t.wasClicked()) {
             if (!button_power.isPressed() && button_power.contains(t.x, t.y)) {
                 button_power.press(true);
                 button_power.drawButton(true);
@@ -432,6 +432,7 @@ public:
             int height = M5.Display.height() / 2;
 
             players[i].lifeTotal = 40;
+            for (int j = 0; j < 4; j ++) players[i].commanderDamage[j] = 0;
             switch (i + 1) {
             case 1:
                 players[i].rect = { .x=sidebarRect.width, .y=0, .width=width, .height=height, .rotation=2};
@@ -455,11 +456,12 @@ public:
     App::Choices loop () {
         auto t = M5.Touch.getDetail();
         const time_t current_time = time(nullptr);
-        if (t.wasPressed()) {
+        if (t.wasClicked()) {
             last_interaction_time = current_time;
 
             switch (mode) {
             case Playing:
+            case CommanderDamage:
                 if (sidebarRect.contains(t.x, t.y)) {
                     showConfirm();
                     mode = ConfirmReset;
@@ -485,6 +487,15 @@ public:
                 break;
             }
         }
+        else if (t.wasHold()) {
+            last_interaction_time = current_time;
+            switch (mode) {
+            case Playing:
+            case CommanderDamage:
+                for (int i = 0; i < 4; i++) holdPlayer(i, t.x, t.y);
+                break;
+            }
+        }
         if (current_time >= next_clock_update) {
             ESP_LOGD("LifeTracker", "Updating clock and battery display");
             next_clock_update = next_minute(current_time);
@@ -503,7 +514,7 @@ public:
     }
 
 protected:
-    enum Mode {Playing, ConfirmReset};
+    enum Mode {Playing, CommanderDamage, ConfirmReset};
     Mode mode;
     struct Rect {
         int x;
@@ -519,9 +530,11 @@ protected:
     struct Player {
         int lifeTotal;
         Rect rect;
+        int commanderDamage[4];
     };
     Rect sidebarRect;
     Player players[4];
+    int activePlayer = 0;
     LGFX_Button button_ok;
     LGFX_Button button_cancel;
     time_t last_interaction_time;
@@ -533,10 +546,23 @@ protected:
 
         Rect* rect = &players[player].rect;
         int border = 5;
+        int lifeTotal;
+        bool isActive = false;
+        auto lineColor = TFT_LIGHTGRAY;
+        switch (mode) {
+            case CommanderDamage:
+                lifeTotal = players[activePlayer].commanderDamage[player];
+                isActive = activePlayer == player;
+                lineColor = TFT_BLACK;
+                border = 7;
+                break;
+        default:
+            lifeTotal = players[player].lifeTotal;
+        }
         M5Canvas canvas(&M5.Display);
         canvas.createSprite(rect->width, rect->height);
-        canvas.fillSprite(TFT_LIGHTGRAY);
-        canvas.fillRect(border, border, rect->width - border, rect->height - border, TFT_WHITE);
+        canvas.fillSprite(lineColor);
+        canvas.fillRect(border, border, rect->width - border, rect->height - border, isActive ? TFT_LIGHTGRAY : TFT_WHITE);
         canvas.setRotation(rect->rotation);
         canvas.setTextColor(TFT_BLACK);
         canvas.setFont(&fonts::FreeMono24pt7b);
@@ -547,11 +573,11 @@ protected:
         canvas.drawString("+5", rect->width - border * 2 - canvas.textWidth("+5"), rect->height - border * 2 - canvas.fontHeight());
         int separator_y = 2 * rect->height / 3;
         int separator_length = rect->width / 5;
-        canvas.fillRect(0, separator_y, separator_length, border, TFT_LIGHTGRAY);
-        canvas.fillRect(rect->width - separator_length, separator_y, separator_length, border, TFT_LIGHTGRAY);
+        canvas.fillRect(0, separator_y, separator_length, border, lineColor);
+        canvas.fillRect(rect->width - separator_length, separator_y, separator_length, border, lineColor);
         canvas.setFont(&fonts::Orbitron_Light_32);
         canvas.setTextSize(3);
-        canvas.drawCenterString(String(players[player].lifeTotal, DEC), rect->width / 2, (rect->height / 2) - (canvas.fontHeight() / 2));
+        canvas.drawCenterString(String(lifeTotal, DEC), rect->width / 2, (rect->height / 2) - (canvas.fontHeight() / 2));
         canvas.pushSprite(rect->x, rect->y);
     }
 
@@ -584,8 +610,31 @@ protected:
             life_multiplier = 5;
         }
 
-        players[player].lifeTotal += (life_change * life_multiplier);
+        switch (mode) {
+        case Playing:
+            players[player].lifeTotal += (life_change * life_multiplier);
+            break;
+        case CommanderDamage:
+            players[activePlayer].commanderDamage[player] += (life_change * life_multiplier);
+            players[activePlayer].lifeTotal -= (life_change * life_multiplier);
+            break;
+        }
         drawPlayer(player);
+    }
+
+    void holdPlayer(int player, int x, int y) {
+        Rect* rect = &players[player].rect;
+        if (! rect->contains(x, y)) return;
+        switch (mode) {
+        case Playing:
+            mode = CommanderDamage;
+            activePlayer = player;
+            break;
+        case CommanderDamage:
+            mode = Playing;
+            break;
+        }
+        for (int i = 0; i < 4; i++) drawPlayer(i);
     }
 
     void showConfirm() {
@@ -612,6 +661,32 @@ protected:
         button_cancel.drawButton();
         M5.Display.endWrite();
     }
+
+    void showCommanderDamage() {
+        int play_area_width = M5.Display.width() - sidebarRect.width;
+        int play_area_height = M5.Display.height();
+        int width = 2 * play_area_width / 3;
+        int height = 2 * play_area_height / 3;
+        int x = sidebarRect.width + (play_area_width - width) / 2;
+        int y = (play_area_height - height) / 2;
+        int border = 10;
+        int button_width = width / 3;
+
+        M5.Display.startWrite();
+        M5.Display.fillRect(x, y, width, height, TFT_DARKGRAY);
+        M5.Display.fillRect(x + border, y + border, width - border * 2, height - border * 2, TFT_WHITE);
+        M5.Display.setFont(&fonts::Orbitron_Light_32);
+        M5.Display.setTextSize(2);
+        M5.Display.drawCenterString("Reset game?", x + (width / 2), y + (border * 2));
+        M5.Display.setFont(&fonts::Font0);
+        M5.Display.setTextSize(1);
+        button_ok.initButton(&M5.Display, x + 2 * button_width / 3, y + height - 100, button_width, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "OK", 3, 3);
+        button_ok.drawButton();
+        button_cancel.initButton(&M5.Display, x + width - 2 * button_width / 3, y + height - 100, button_width, 100, TFT_BLACK, TFT_LIGHTGRAY, TFT_BLACK, "Cancel", 3, 3);
+        button_cancel.drawButton();
+        M5.Display.endWrite();
+    }
+
 
     void drawSidebar() {
         M5Canvas canvas(&M5.Display);
