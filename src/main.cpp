@@ -475,6 +475,7 @@ public:
                     M5.Display.startWrite();
                     for (int i = 0; i < 4; i++) {
                         players[i].lifeTotal = 40;
+                        for (int j = 0; j < 4; j++) players[i].commanderDamage[j] = 0;
                         drawPlayer(i);
                     }
                     M5.Display.endWrite();
